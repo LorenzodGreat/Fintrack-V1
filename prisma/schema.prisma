@@ -1,0 +1,119 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --- Enums for standardized types ---
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+  SAVINGS
+}
+
+enum AccountType {
+  CHECKING
+  SAVINGS
+  CREDIT_CARD
+  CASH
+}
+
+
+// --- Models for your application ---
+
+// Represents a user of the application.
+model User {
+  id            String        @id @default(cuid())
+  clerkUserId   String        @unique
+  name          String?
+  imageUrl      String?
+  email         String        @unique
+  passwordHash  String // In a real app, never store plain text passwords.
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  accounts      Account[]
+  transactions  Transaction[]
+  categories    Category[]
+  budgetGoals   BudgetGoal[]
+}
+
+
+// Represents a financial account, like a checking or savings account.
+model Account {
+  id        String      @id @default(cuid())
+  name      String
+  type      AccountType
+  balance   Decimal     @default(0)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  userId       String
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  transactions Transaction[]
+}
+
+// Represents a single financial transaction.
+model Transaction {
+  id          String          @id @default(cuid())
+  date        DateTime
+  description String
+  amount      Decimal
+  type        TransactionType
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  accountId String
+  account   Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  // Denormalized for easier querying
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+}
+
+// Represents a category for transactions (e.g., 'Food', 'Shopping').
+model Category {
+  id        String   @id @default(cuid())
+  name      String
+  icon      String? // Could store an icon name or URL
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  transactions Transaction[]
+  budgetGoal   BudgetGoal?
+
+  // Each user has their own unique set of categories.
+  @@unique([userId, name])
+}
+
+// Represents a user's budget goal for a specific category.
+model BudgetGoal {
+  id           String   @id @default(cuid())
+  targetAmount Decimal
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // A budget goal is unique to a single category for a user.
+  categoryId String   @unique
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+}
